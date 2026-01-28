@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+logs/
+go2_parkour_deploy.egg-info/

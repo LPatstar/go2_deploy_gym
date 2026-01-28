@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 from .mujoco_base_sensor import MujocoBaseSensor 
 import mujoco
 import numpy as np
@@ -6,9 +6,9 @@ import torch as th
 from dataclasses import dataclass
 @dataclass
 class ContactSensorData:
-    net_forces_w: th.Tensor | None = None
-    net_forces_w_history: th.Tensor | None = None
-    foot_ids: th.Tensor | None = None
+    net_forces_w: Optional[th.Tensor] = None
+    net_forces_w_history: Optional[th.Tensor] = None
+    foot_ids: Optional[th.Tensor] = None
 
 class MujocoContactSensor(MujocoBaseSensor):
 
@@ -44,7 +44,7 @@ class MujocoContactSensor(MujocoBaseSensor):
         body_dict = self._articulation.get_body_ids(['FL_foot', 'FR_foot' ,'RL_foot','RR_foot'])
         self._contact_data.foot_ids = th.tensor([_id for _id in body_dict.values()]).to(self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Optional[Sequence[int]] = None):
         super().reset(env_ids)
         # resolve None
         if env_ids is None:

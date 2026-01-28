@@ -20,9 +20,10 @@ from .ppo_with_extractor import PPOWithExtractor
 from .distillation_with_extractor import DistillationWithExtractor 
 from copy import copy 
 import warnings 
+from typing import Optional
 
 class OnPolicyRunnerWithExtractor(OnPolicyRunner):
-    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu"):
+    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: Optional[str] = None, device="cpu"):
         self.cfg = train_cfg
         self.alg_cfg = train_cfg["algorithm"]
         self.estimator_cfg = train_cfg["estimator"]

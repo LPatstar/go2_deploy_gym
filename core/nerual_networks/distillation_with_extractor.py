@@ -4,6 +4,8 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from typing import Optional
+
 from .feature_extractors import DepthOnlyFCBackbone58x87, RecurrentDepthBackbone
 from .actor_critic_with_encoder import ActorCriticRMA
 from copy import deepcopy  
@@ -20,7 +22,7 @@ class DistillationWithExtractor():
         policy_cfg,
         device,
         max_grad_norm=1.0,
-        multi_gpu_cfg: dict | None = None,
+        multi_gpu_cfg: Optional[dict] = None,
         ):
         self.device = device
         self.is_multi_gpu = multi_gpu_cfg is not None

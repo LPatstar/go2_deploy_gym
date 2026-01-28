@@ -3,14 +3,15 @@ import numpy as np
 from mujoco_deploy.mujoco_sensors.mujoco_raycaster import MujocoRaycaster
 from mujoco_deploy.mujoco_sensors.mujoco_contact_sensor import MujocoContactSensor
 from mujoco_deploy.mujoco_sensors.mujoco_depth_camera import MujocoDepthCamera
-from isaaclab.utils.math  import euler_xyz_from_quat, wrap_to_pi
+from mujoco_deploy.utils_maths  import euler_xyz_from_quat, wrap_to_pi
 from mujoco_deploy.mujoco_env import MujocoEnv
 from mujoco_deploy.mujoco_sensors.mujoco_joystick_controller import MujocoJoystick
 import copy, cv2, torchvision
 from core.utils import isaac_to_mujoco, mujoco_to_isaac, stand_down_joint_pos
 import math
-
-
+from typing import Optional
+import os
+from datetime import datetime
 
 
 from tqdm import tqdm
@@ -24,9 +25,11 @@ class MujocoWrapper():
         agent_cfg,
         model_xml_path:str,
         use_camera: bool,
+        use_joystick: bool = False,
         ):
         self._mujoco_env = MujocoEnv(env_cfg, model_xml_path, use_camera)
         self._use_camera = use_camera
+        self._use_joystick = use_joystick
         self.device = self._mujoco_env.articulation.device
         self.common_step_counter = 0 
         self.decimation = env_cfg.decimation 
@@ -37,13 +40,25 @@ class MujocoWrapper():
         self._observation_clip = env_cfg.observations.policy.extreme_parkour_observations.clip[-1]
         self._agent_cfg = agent_cfg
         self._stand_down_joint_pos = th.tensor(stand_down_joint_pos,dtype=float).to('cuda:0')[mujoco_to_isaac]
+        # print("_stand_down_joint_pos:", self._stand_down_joint_pos)
         self._init_sensors()
         self._init_commands()
         self._init_action_buffers()
 
+        # # Setup effort recording
+        # self.effort_dir = os.path.join(os.getcwd(), "efforts")
+        # os.makedirs(self.effort_dir, exist_ok=True)
+        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # self.effort_file = os.path.join(self.effort_dir, f"efforts_{timestamp}.txt")
+        # print(f"Efforts will be recorded to: {self.effort_file}")
+
     def _init_commands(self):
-        self._joystick = MujocoJoystick(self._mujoco_env.env_cfg, self.device)
-        self._joystick.start_listening()
+        if self._use_joystick:
+             self._joystick = MujocoJoystick(self._mujoco_env.env_cfg, self.device)
+             self._joystick.start_listening()
+        else:
+             print("Joystick disabled by argument.")
+             self._joystick = None
 
     def _init_sensors(self):
         self._sensor_term = []
@@ -80,6 +95,7 @@ class MujocoWrapper():
         self._delay_update_global_steps = int(joint_pos_cfg.delay_update_global_steps)
         self._use_delay = joint_pos_cfg.use_delay
         self._action_delay_steps = joint_pos_cfg.action_delay_steps
+        self.delay = th.tensor(0.0, device=self.device, dtype=th.float)
         self._action_history_buf = th.zeros(1, self._action_history_length, self._mujoco_env.articulation.num_motor, device=self.device, dtype=th.float)
         self._actions = th.zeros(1, self._mujoco_env.articulation.num_motor, device=self.device)
         self._processed_actions = th.zeros(1, self._mujoco_env.articulation.num_motor, device=self.device)
@@ -105,6 +121,13 @@ class MujocoWrapper():
                     self._mujoco_env.articulation.joint_dampings * (self._mujoco_env.articulation.control_joint_velocities - self._mujoco_env.articulation.joint_vel)
                 processed_action_np = self._init_actions.detach().cpu().numpy()
                 self._mujoco_env.step(processed_action_np)
+                # print("------------⭐UP⭐--------------")
+                # print("cur_pose:", cur_pose)
+                # print("self._mujoco_env.articulation.joint_pos:", self._mujoco_env.articulation.joint_pos)
+                # print("self._init_actions:", self._init_actions)
+                # print("processed_action_np:", processed_action_np)
+                # print("--------------------------------")
+
 
     def _init_pose_stand_down(self):
         runing_time = 0.0
@@ -121,6 +144,12 @@ class MujocoWrapper():
                     self._mujoco_env.articulation.joint_dampings * (self._mujoco_env.articulation.control_joint_velocities - self._mujoco_env.articulation.joint_vel)
                 processed_action_np = self._init_actions.detach().cpu().numpy()
                 self._mujoco_env.step(processed_action_np)
+                # print("-----------⭐DOWN⭐-------------")
+                # print("cur_pose:", cur_pose)
+                # print("self._mujoco_env.articulation.joint_pos:", self._mujoco_env.articulation.joint_pos)
+                # print("self._init_actions:", self._init_actions)
+                # print("processed_action_np:", processed_action_np)
+                # print("--------------------------------")
 
     def reset(self):
         self.common_step_counter = 0
@@ -143,24 +172,35 @@ class MujocoWrapper():
         height_scan = th.clip(height_scan, -1, 1).to(self.device)
         env_idx_tensor = th.tensor([True]).to(dtype = th.bool, device=self.device)
         invert_env_idx_tensor = ~env_idx_tensor
-        commands = self._joystick.velocity_cmd
+        
+        if self._joystick is not None:
+             commands = self._joystick.velocity_cmd
+        else:
+             # Default command if no joystick: 0.5 m/s forward
+             commands = th.zeros((1, 3), device=self.device)
+             commands[:, 0] = 0.5 
+
+
         self._delta_next_yaw[:] = self._delta_yaw[:] = wrap_to_pi(yaw)[:,None]
         obs_buf = th.cat((
                             self._mujoco_env.articulation.root_ang_vel_b* 0.25,   #[1,4]
                             imu_obs,    #[1,2]
-                            0*self._delta_yaw, 
-                            self._delta_yaw,
-                            self._delta_next_yaw,
-                            0*commands[:, 0:2], 
-                            commands[:, 0:1],  #[1,1]
+                            wrap_to_pi(yaw)[:,None],                    # 1
+                            commands[:, 2:3],                     # 1
+                            0*self._delta_next_yaw,               # 1
+                            0*commands[:, 0:2],                   # 2
+                            commands[:, 0:1],                     # 1
                             env_idx_tensor.float()[:, None],
                             invert_env_idx_tensor.float()[:, None],
-                            self._mujoco_env.articulation.joint_pos - self._mujoco_env.default_joint_pose,
-                            self._mujoco_env.articulation.joint_vel* 0.05,
-                            self._action_history_buf[:, -1],
-                            self._get_contact_fill(),
+                            self.reindex_to_MJ(self._mujoco_env.articulation.joint_pos - self._mujoco_env.default_joint_pose),
+                            self.reindex_to_MJ(self._mujoco_env.articulation.joint_vel* 0.05),
+                            self.reindex_to_MJ(self._action_history_buf[:, -1]),
+                            self.reindex_feet(self._get_contact_fill()),
                             ),dim=-1)
-        
+        # print("self._mujoco_env.articulation.root_ang_vel_b:", self._mujoco_env.articulation.root_ang_vel_b)
+        # print("self._delta_yaw:", self._delta_yaw)
+        # print("commands[:, 0:1]", commands[:, 0:1])
+        # print("obs_buf:", obs_buf)
         observations = th.cat([obs_buf, #53 
                                 height_scan, #132 
                                 self._priv_explicit, # 9
@@ -176,7 +216,11 @@ class MujocoWrapper():
                 obs_buf.unsqueeze(1)
             ], dim=1)
         )
-        depth_image = self._get_depth_image()
+        if self._use_camera:
+            depth_image = self._get_depth_image()
+        else:
+            depth_image = th.zeros(1, device=self.device)
+
         observations = th.clip(observations, min = -self._observation_clip, max = self._observation_clip)
         extras = {'observations':{"policy":observations.to(th.float),
                                   'depth_camera':depth_image.to(th.float)}}
@@ -226,6 +270,7 @@ class MujocoWrapper():
         """Applies the current action to the robot."""
         """ class LocomotionEnv(DirectRLEnv)"""
         """ 1. make processed actions"""
+        # print("Processed actions:", self._processed_actions[0])
         error_pos = self._processed_actions - self._mujoco_env.articulation.joint_pos
         error_vel = self._mujoco_env.articulation.control_joint_velocities - self._mujoco_env.articulation.joint_vel # type: ignore
         self.computed_effort = self._mujoco_env.articulation.joint_stiffness * error_pos \
@@ -240,6 +285,13 @@ class MujocoWrapper():
             * (-1.0 - self._mujoco_env.articulation.joint_vel / self._mujoco_env.articulation.velocity_limit)
         min_effort = th.clip(min_effort, min=-self._mujoco_env.articulation.effort_limit, max=self._mujoco_env.articulation.zeros_effort)
         self._applied_effort = th.clip(self.computed_effort, min=min_effort, max=max_effort)
+        # print("Applied effort:", self._applied_effort[0])
+
+        # # Record efforts
+        # effort_np = self._applied_effort.detach().cpu().numpy()
+        # with open(self.effort_file, "a") as f:
+        #     np.savetxt(f, effort_np, fmt="%.6f", delimiter=" ")
+
 
     def _process_actions(self):
         if self.common_step_counter % self._delay_update_global_steps == 0:
@@ -261,10 +313,20 @@ class MujocoWrapper():
 
         else:
             self._processed_actions = self._actions * self._mujoco_env.env_cfg.actions.joint_pos.scale 
+    
+    def reindex_feet(self, vec):
+        return vec[:, [1, 0, 3, 2]]
 
-    def step(self, actions: th.Tensor | None = None):
+    def reindex_to_ILAB(self, vec):
+        return vec[:, mujoco_to_isaac]
+    
+    def reindex_to_MJ(self, vec):
+        return vec[:, isaac_to_mujoco]
+    
+    def step(self, actions: Optional[th.Tensor] = None):
         ### actions is isaacsim based
-        self._actions = actions.clone()       
+        self._actions = self.reindex_to_ILAB(actions.clone())
+        # print("action:", self._actions)    
         self._process_actions()
         self.common_step_counter += 1
         self.episode_length_buf += 1  # step in current episode (per env)

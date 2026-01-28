@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from typing import Sequence, Optional
 import torch 
 from abc import abstractmethod
 import numpy as np 
@@ -19,7 +19,7 @@ class MujocoBaseSensor():
         # Timestamp from last update
         self._timestamp_last_update = torch.zeros_like(self._timestamp)
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Optional[Sequence[int]] = None):
         # Resolve sensor ids
         if env_ids is None:
             env_ids = slice(None)

@@ -1,7 +1,7 @@
 import mujoco 
 import torch as th 
-from isaaclab.utils.math import quat_apply, quat_apply_yaw
-from typing import Sequence
+from mujoco_deploy.utils_maths import quat_apply, quat_apply_yaw
+from typing import Sequence, Optional, Tuple
 from mujoco_deploy.mujoco_sensors.mujoco_base_sensor import MujocoBaseSensor
 import numpy as np 
 from mujoco.viewer import Handle
@@ -10,12 +10,12 @@ from dataclasses import dataclass
 
 @dataclass
 class RayCasterData:
-    pos_w: th.Tensor = None
-    quat_w: th.Tensor = None
-    ray_hits_w: th.Tensor = None
+    pos_w: Optional[th.Tensor] = None
+    quat_w: Optional[th.Tensor] = None
+    ray_hits_w: Optional[th.Tensor] = None
 
 
-def grid_pattern(cfg, device: str) -> tuple[th.Tensor, th.Tensor]:
+def grid_pattern(cfg, device: str) -> Tuple[th.Tensor, th.Tensor]:
     # check valid arguments
     if cfg.ordering not in ["xy", "yx"]:
         raise ValueError(f"Ordering must be 'xy' or 'yx'. Received: '{cfg.ordering}'.")
@@ -118,7 +118,7 @@ class MujocoRaycaster(MujocoBaseSensor):
         self._ray_cast_data.ray_hits_w = th.zeros(1, self.num_rays, 3, device=self._device)
         self._geom_ids = -np.ones((self.num_rays), dtype=np.int32)
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Optional[Sequence[int]] = None):
         # reset the timers and counters
         super().reset(env_ids)
         # resolve None
@@ -136,16 +136,20 @@ class MujocoRaycaster(MujocoBaseSensor):
         pos_w = (pos_w + self.drift[env_ids]).to(dtype=th.float32)        # store the poses
         self._ray_cast_data.pos_w[env_ids] = pos_w
         self._ray_cast_data.quat_w[env_ids] = quat_w
+        
+        # Expand quat_w to match (num_envs, num_rays, 4)
+        quat_w_expanded = quat_w.unsqueeze(1).repeat(1, self.num_rays, 1)
+
         if self.sensor_cfg.attach_yaw_only:
             # only yaw orientation is considered and directions are not rotated
-            ray_starts_w = quat_apply_yaw(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
+            ray_starts_w = quat_apply_yaw(quat_w_expanded, self.ray_starts[env_ids])
             ray_starts_w += pos_w.squeeze(0)
             ray_directions_w = self.ray_directions[env_ids]
         else:
             # full orientation is considered
-            ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
+            ray_starts_w = quat_apply(quat_w_expanded, self.ray_starts[env_ids])
             ray_starts_w += pos_w.squeeze(0)
-            ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+            ray_directions_w = quat_apply(quat_w_expanded, self.ray_directions[env_ids])
 
         geomid = np.zeros(1, np.int32)
         ray_starts_w_numpy = ray_starts_w.detach().cpu().numpy() 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from typing import Optional
 
 from .actor_critic_with_encoder import ActorCriticRMA
 from rsl_rl.algorithms import PPO
@@ -31,12 +32,12 @@ class PPOWithExtractor(PPO):
         device="cpu",
         normalize_advantage_per_mini_batch=False,
         # RND parameters
-        rnd_cfg: dict | None = None,
+        rnd_cfg: Optional[dict] = None,
         # Symmetry parameters
-        symmetry_cfg: dict | None = None,
+        symmetry_cfg: Optional[dict] = None,
         # Distributed training parameters
         priv_reg_coef_schedual = [0, 0, 0],
-        multi_gpu_cfg: dict | None = None,
+        multi_gpu_cfg: Optional[dict] = None,
     ):
         super().__init__(
             policy, 

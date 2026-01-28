@@ -1,12 +1,17 @@
 import mujoco
-import isaaclab.utils.math as math_utils
+from mujoco_deploy.utils_maths import *
 import torch as th 
-from isaaclab.utils.buffers import TimestampedBuffer
+# from isaaclab.utils.buffers import TimestampedBuffer
 from core.utils import get_entity_name, get_entity_id, ISAAC_JOINT_NAMES, mujoco_to_isaac, isaac_to_mujoco
 import numpy as np 
-from typing import Tuple
+from typing import Tuple, List, Dict, Optional, Union
 import re 
 from scipy.spatial.transform import Rotation
+
+class TimestampedBuffer:
+    def __init__(self):
+        self.timestamp = -1.0
+        self.data = None
 
 class MujocoArticulation():
     """
@@ -105,10 +110,10 @@ class MujocoArticulation():
         return self._joint_dampings
 
     @property
-    def body_names(self) -> list[str]:
+    def body_names(self) -> List[str]:
         return [get_entity_name(self._model, "body", i) for i in range(1, self._model.nbody)]
 
-    def get_body_ids(self, body_names: list[str] | None = None, free_joint_offset: int = 1) -> dict[str, int]:
+    def get_body_ids(self, body_names: Optional[List[str]] = None, free_joint_offset: int = 1) -> Dict[str, int]:
         body_names_ = body_names if body_names else self.body_names
         body_ids = {}
         for name in body_names_:
@@ -120,13 +125,13 @@ class MujocoArticulation():
         return body_ids
     
     @property
-    def joint_names(self) -> list[str]:
+    def joint_names(self) -> List[str]:
         offset = 0
         if self._has_free_joint:
             offset = 1  
         return [get_entity_name(self._model, "joint", i) for i in range(offset, self._model.njnt)]
 
-    def get_joint_ids(self, joint_names: list[str] | None = None, free_joint_offset: int = 1) -> dict[str, int]:
+    def get_joint_ids(self, joint_names: Optional[List[str]] = None, free_joint_offset: int = 1) -> Dict[str, int]:
         joint_name_ = joint_names if joint_names else self.joint_names
         joint_ids = {}
         for name in joint_name_:
@@ -207,7 +212,7 @@ class MujocoArticulation():
 
     @property
     def root_ang_vel_b(self) -> th.Tensor:
-        return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
+        return quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
 
     @property
     def device(self):

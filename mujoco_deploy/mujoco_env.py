@@ -5,6 +5,7 @@ import torch as th
 from core.utils import isaac_to_mujoco, ISAAC_JOINT_NAMES
 import re, time
 from mujoco_deploy.mujoco_sensors.mujoco_articulation import MujocoArticulation
+from typing import Optional
 
 class MujocoEnv():
     """
@@ -73,7 +74,8 @@ class MujocoEnv():
         self._default_joint_pose[:] = th.tensor(self._nominal_joint_pos).to(self._articulation.device)
         self._articulation.joint_vel = th.from_numpy(self._default_joint_vel[:,1:]).to(self._articulation.device)
 
-    def step(self, actions: np.ndarray | None = None) -> None:
+    def step(self, actions: Optional[np.ndarray] = None) -> None:
+        # print("ACTIONS IN MUJOCO ENV STEP:", actions)
         step_start = time.perf_counter()
         if actions is None:
             actions = np.zeros((1, self._model.nu))
@@ -85,7 +87,7 @@ class MujocoEnv():
             )
         for idx, joint_idx in enumerate(isaac_to_mujoco):
             self._data.ctrl[idx] = actions[0][joint_idx]
-            
+        # print("_data.ctrl:", self._data.ctrl)
         self.articulation.update(dt = self.env_cfg.sim.dt )
         time_until_next_step = self._model.opt.timestep - (
             time.perf_counter() - step_start

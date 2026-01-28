@@ -11,6 +11,7 @@ import time,mujoco
 # ],
 # dtype=float).to('cuda:0')[mujoco_to_isaac]
 
+
 stand_down_joint_pos = th.tensor([
     0.0473455, 1.22187, -2.44375, -0.0473455, 1.22187, -2.44375, 0.0473455,
     1.22187, -2.44375, -0.0473455, 1.22187, -2.44375

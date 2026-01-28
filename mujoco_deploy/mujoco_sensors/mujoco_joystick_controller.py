@@ -16,7 +16,7 @@ class MujocoJoystick:
         self.y_vel = 0
         self.yaw = 0
         self._device = device
-        self.joystick = pygame.joystick.Joystick(0)
+        # self.joystick = pygame.joystick.Joystick(0) # Already handled in _init_joystick
         commands_cfg = env_cfg.commands.base_velocity
         self._resampling_time_range = commands_cfg.resampling_time_range[-1]
         self._small_commands_to_zero = commands_cfg.small_commands_to_zero
@@ -39,16 +39,22 @@ class MujocoJoystick:
         if joystick_count > 0:
             self.joystick = pygame.joystick.Joystick(device_id)
             self.joystick.init()
+            print(f"[INFO] Initialized {self.joystick.get_name()}")
+            print(f"[INFO] Joystick power level {self.joystick.get_power_level()}")
+            self.has_joystick = True
         else:
-            print("No gamepad detected.")
-            sys.exit()
-        print(f"[INFO] Initialized {self.joystick.get_name()}")
-        print(f"[INFO] Joystick power level {self.joystick.get_power_level()}")
+            print("No gamepad detected. Using zero commands.")
+            self.joystick = None
+            self.has_joystick = False
+            # sys.exit() # Do not exit!
+
         buffer_length = 10
         self._x_buffer = deque([0] * buffer_length, buffer_length)
         self._velocity_cmd = np.zeros((1,3))
 
     def start_listening(self):
+        if not self.has_joystick:
+            return 
         self._listening_thread = Thread(target=self.listen)
         self._listening_thread.start()
 

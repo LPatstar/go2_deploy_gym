@@ -1,6 +1,6 @@
 import mujoco 
 import torch as th 
-from typing import Sequence, Any
+from typing import Sequence, Any, Tuple, Dict, List
 from mujoco_deploy.mujoco_sensors.mujoco_base_sensor import MujocoBaseSensor
 import numpy as np 
 from dataclasses import dataclass
@@ -8,10 +8,10 @@ import mujoco, cv2
 
 @dataclass
 class CameraData:
-    image_shape: tuple[int, int] = None
+    image_shape: Tuple[int, int] = None
     intrinsic_matrices: th.Tensor = None
-    output: dict[str, th.Tensor] = None
-    info: list[dict[str, Any]] = None
+    output: Dict[str, th.Tensor] = None
+    info: List[Dict[str, Any]] = None
 
 class MujocoDepthCamera(MujocoBaseSensor):
     def __init__(self, 
