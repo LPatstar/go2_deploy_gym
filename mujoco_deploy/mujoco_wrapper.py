@@ -178,10 +178,26 @@ class MujocoWrapper():
         else:
              # Default command if no joystick: 0.5 m/s forward
              commands = th.zeros((1, 3), device=self.device)
-             commands[:, 0] = 0.5 
+             commands[:, 0] = 0.5
+             commands[:, 2] = 0
 
 
-        self._delta_next_yaw[:] = self._delta_yaw[:] = wrap_to_pi(yaw)[:,None]
+        self._delta_next_yaw[:] = self._delta_yaw[:] = -wrap_to_pi(yaw)[:,None]
+        # obs_buf = th.cat((
+        #                     self._mujoco_env.articulation.root_ang_vel_b* 0.25,   #[1,4]
+        #                     imu_obs,    #[1,2]
+        #                     0*self._delta_yaw, 
+        #                     self._delta_yaw,
+        #                     self._delta_next_yaw,
+        #                     0*commands[:, 0:2],                   # 2
+        #                     commands[:, 0:1],                     # 1
+        #                     env_idx_tensor.float()[:, None],
+        #                     invert_env_idx_tensor.float()[:, None],
+        #                     self.reindex_to_MJ(self._mujoco_env.articulation.joint_pos - self._mujoco_env.default_joint_pose),
+        #                     self.reindex_to_MJ(self._mujoco_env.articulation.joint_vel* 0.05),
+        #                     self.reindex_to_MJ(self._action_history_buf[:, -1]),
+        #                     self.reindex_feet(self._get_contact_fill()),
+        #                     ),dim=-1)
         obs_buf = th.cat((
                             self._mujoco_env.articulation.root_ang_vel_b* 0.25,   #[1,4]
                             imu_obs,    #[1,2]

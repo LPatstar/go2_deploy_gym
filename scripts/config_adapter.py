@@ -160,7 +160,8 @@ def get_configs(use_camera=False):
              
         # Add intrinsics parameters for MujocoDepthCamera (Realsense D435 approximations)
         import math
-        fov_h_deg = 87.0
+        # Use horizontal_fov from training config (Go2RoughCfg.depth.horizontal_fov)
+        fov_h_deg = Go2RoughCfg.depth.horizontal_fov if hasattr(Go2RoughCfg.depth, 'horizontal_fov') else 79.0
         env_cfg.scene.depth_camera.pattern_cfg.horizontal_aperture = 10.0 # arbitrary units
         # Maintain aspect ratio assuming square pixels
         aspect_ratio = env_cfg.scene.depth_camera.pattern_cfg.height / env_cfg.scene.depth_camera.pattern_cfg.width
