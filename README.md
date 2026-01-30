@@ -1,46 +1,27 @@
 # Unitree GO2 Deploy
 
-This repo is a Unitree GO2 Deployment which have been trained by IsaacLab.
+This repo is a Unitree GO2 Deployment which have been trained by IsaacGym.
 
-We are supporting deployment in a Mujoco simulation and RealWorld.
+We are supporting deployment in a Mujoco simulation.
 
 ### 1. Installation
 
 Before installing this repo, you must install a [unitree_mujoco](https://github.com/unitreerobotics/unitree_mujoco).
 
-`cd IsaacLab ## going to your IsaacLab folder`
-
-`git clone https://github.com/CAI23sbP/go2_deploy.git`
+`git clone https://github.com/LPatstar/go2_deploy_gym.git`
 
 `cd go2_deploy && pip3 install -e .`
 
 
 ### 2. How to use
 
-`export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6`
+### 2.1. Create Terrain
 
-`export LD_LIBRARY_PATH=~/anaconda3/envs/env_isaaclab/lib:$LD_LIBRARY_PATH`
+直接用core/go2里的terrain_generator.py即可
 
-### 3. Sim2Sim  
+### 2.2. Deploy mujoco
 
-### 3.1. Create parkour_demo env 
-
-`python3 mujoco_deploy/mujoco_terrain_generator.py`
-
-![alt text](<Screenshot from 2025-09-08 19-42-46.png>)
-
-### 3.2. Deploy mujoco
-
-`python3 scripts/go2_deploy --interface lo`
-
-
-https://github.com/user-attachments/assets/b7e9e72d-6e8c-4092-9d88-606186e82b8c
-
-
-
-### 4. TODO list
-
-* [ ] Make Real-world deployment code
+`python go2_deploy.py --load_model [Your Path]/model_xxxx.pt --use_camera`
 
 
 ### Acknowledgement
@@ -57,10 +38,8 @@ Thanks to their previous projects.
 
 5. @itt-DLSLab [repo](https://github.com/iit-DLSLab/gym-quadruped)
 
-## Citation
-
 ```
-Copyright (c) 2025, Sangbaek Park
+6. Copyright (c) 2025, Sangbaek Park
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software …
@@ -69,10 +48,4 @@ The use of this software in academic or scientific publications requires
 explicit citation of the following repository:
 
 https://github.com/CAI23sbP/go2_parkour_deploy
-```
-
-## contact us
-
-```
-sbp0783@hanyang.ac.kr
 ```
