@@ -3,6 +3,7 @@ from mujoco_deploy.mujoco_wrapper import MujocoWrapper
 import os
 import core
 from core.my_modules.actor_critic import Actor, get_activation
+from core.my_modules.estimator import Estimator
 from core.my_modules.depth_backbone import RecurrentDepthBackbone, DepthOnlyFCBackbone58x87
 from legged_gym.utils import task_registry # Use task_registry from installed legged_gym
 from typing import Dict, Optional
@@ -199,46 +200,24 @@ class DeploymentPlayer:
             
             self.policy.eval()
 
-            # C. 加载 Depth Encoder (如果使用相机)
-            if self._use_camera:
-                print("Loading Depth Encoder...")
-                # 1. 初始化 Backbone
-                # DepthOnlyFCBackbone58x87(prop_dim, scandots_output_dim, hidden_state_dim, output_activation=None, num_frames=1)
-                # hidden_state_dim 在原始实现中其实未被使用，但需要传递占位符
-                
-                scan_dot_dim = est_cfg.scan_encoder_dims[-1] if hasattr(est_cfg, 'scan_encoder_dims') else 32
-                
-                depth_backbone = DepthOnlyFCBackbone58x87(
-                    prop_dim=est_cfg.num_prop, 
-                    scandots_output_dim=scan_dot_dim, 
-                    hidden_state_dim=512, # Dummy value, not used in Original implementation
-                )
-                
-                # 2. 初始化 Recurrent Encoder (包装器)
-                # RecurrentDepthBackbone(base_backbone, env_cfg)
-                self.depth_encoder = RecurrentDepthBackbone(depth_backbone, env_cfg).to(self.env.device)
-                
-                depth_dict = {}
-                if 'depth_encoder_state_dict' in raw_loaded_dict:
-                    depth_dict = raw_loaded_dict['depth_encoder_state_dict']
-                else:
-                    # Look in model_dict for 'depth_encoder.' or 'alg.depth_encoder.'
-                    # OnPolicyRunner model_state_dict often puts it in module directly or via wrapper?
-                    # Actually OnPolicyRunner save() puts it in 'depth_encoder_state_dict' explicitly.
-                    # But if we are loading some other checkpoint format:
-                    full_dict = raw_loaded_dict.get('model_state_dict', raw_loaded_dict)
-                    for k, v in full_dict.items():
-                        if 'depth_encoder.' in k:
-                            depth_dict[k.replace('depth_encoder.', '')] = v
-                
-                if depth_dict:
-                     self.depth_encoder.load_state_dict(depth_dict, strict=False)
-                     self.depth_encoder.eval()
-                     print("Depth Encoder loaded using RecurrentDepthBackbone wrapper.")
-                else:
-                     print("WARNING: Depth Encoder requested but not found in checkpoint!")
-
+            # Load Estimator
+            print("Loading Estimator...")
+            self.estimator = Estimator(
+                input_dim=est_cfg.num_prop, 
+                output_dim=est_cfg.num_priv_explicit,
+                hidden_dims=est_cfg.estimator_hidden_dims,
+                activation=est_cfg.activation
+            ).to(self.env.device)
             
+            if 'estimator_state_dict' in raw_loaded_dict:
+                self.estimator.load_state_dict(raw_loaded_dict['estimator_state_dict'])
+                print("Estimator loaded from estimator_state_dict.")
+            else:
+                print("WARNING: estimator_state_dict not found in checkpoint! Using random initialization.")
+            
+            self.estimator.eval()
+            self.env.estimator = self.estimator
+
             # D. 加载 Normalizer (关键修改)
             # OnPolicyRunner 保存时，normalizer 通常在 alg.actor_critic.obs_normalizer 或 alg.obs_normalizer
             # 这里的 model_dict 通常是 actor_critic 的 state_dict

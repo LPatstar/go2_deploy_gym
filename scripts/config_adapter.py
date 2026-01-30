@@ -211,5 +211,19 @@ def get_configs(use_camera=False):
     agent_cfg.estimator.actor_hidden_dims = [512, 256, 128]
     agent_cfg.estimator.priv_encoder_dims = [64, 20]
     agent_cfg.estimator.activation = 'elu'
+    agent_cfg.estimator.estimator_hidden_dims = [128, 64]
+
+    # Try to load from Config if available
+    try:
+        agent_cfg.estimator.scan_encoder_dims = Go2RoughCfgPPO.policy.scan_encoder_dims
+        agent_cfg.estimator.actor_hidden_dims = Go2RoughCfgPPO.policy.actor_hidden_dims
+        agent_cfg.estimator.priv_encoder_dims = Go2RoughCfgPPO.policy.priv_encoder_dims
+        agent_cfg.estimator.activation = Go2RoughCfgPPO.policy.activation
+        agent_cfg.estimator.estimator_hidden_dims = Go2RoughCfgPPO.estimator.hidden_dims
+    except:
+        pass
+    agent_cfg.estimator.actor_hidden_dims = [512, 256, 128]
+    agent_cfg.estimator.priv_encoder_dims = [64, 20]
+    agent_cfg.estimator.activation = 'elu'
 
     return env_cfg, agent_cfg

@@ -41,16 +41,11 @@ class MujocoWrapper():
         self._agent_cfg = agent_cfg
         self._stand_down_joint_pos = th.tensor(stand_down_joint_pos,dtype=float).to('cuda:0')[mujoco_to_isaac]
         # print("_stand_down_joint_pos:", self._stand_down_joint_pos)
+        self.estimator = None 
         self._init_sensors()
         self._init_commands()
         self._init_action_buffers()
 
-        # # Setup effort recording
-        # self.effort_dir = os.path.join(os.getcwd(), "efforts")
-        # os.makedirs(self.effort_dir, exist_ok=True)
-        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # self.effort_file = os.path.join(self.effort_dir, f"efforts_{timestamp}.txt")
-        # print(f"Efforts will be recorded to: {self.effort_file}")
 
     def _init_commands(self):
         if self._use_joystick:
@@ -123,12 +118,6 @@ class MujocoWrapper():
                     self._mujoco_env.articulation.joint_dampings * (self._mujoco_env.articulation.control_joint_velocities - self._mujoco_env.articulation.joint_vel)
                 processed_action_np = self._init_actions.detach().cpu().numpy()
                 self._mujoco_env.step(processed_action_np)
-                # print("------------⭐UP⭐--------------")
-                # print("cur_pose:", cur_pose)
-                # print("self._mujoco_env.articulation.joint_pos:", self._mujoco_env.articulation.joint_pos)
-                # print("self._init_actions:", self._init_actions)
-                # print("processed_action_np:", processed_action_np)
-                # print("--------------------------------")
 
 
     def _init_pose_stand_down(self):
@@ -146,12 +135,6 @@ class MujocoWrapper():
                     self._mujoco_env.articulation.joint_dampings * (self._mujoco_env.articulation.control_joint_velocities - self._mujoco_env.articulation.joint_vel)
                 processed_action_np = self._init_actions.detach().cpu().numpy()
                 self._mujoco_env.step(processed_action_np)
-                # print("-----------⭐DOWN⭐-------------")
-                # print("cur_pose:", cur_pose)
-                # print("self._mujoco_env.articulation.joint_pos:", self._mujoco_env.articulation.joint_pos)
-                # print("self._init_actions:", self._init_actions)
-                # print("processed_action_np:", processed_action_np)
-                # print("--------------------------------")
 
     def reset(self):
         self.common_step_counter = 0
@@ -219,21 +202,29 @@ class MujocoWrapper():
         # print("self._delta_yaw:", self._delta_yaw)
         # print("commands[:, 0:1]", commands[:, 0:1])
         # print("obs_buf:", obs_buf)
+
+        obs_buf_for_history = obs_buf.clone()
+        obs_buf_for_history[:, 6:8] = 0
+        current_history = th.where(
+            (self.episode_length_buf <= 1)[:, None, None], 
+            th.stack([obs_buf_for_history] * self._history_length, dim=1),
+            th.cat([
+                self._obs_history_buffer[:, 1:],
+                obs_buf_for_history.unsqueeze(1)
+            ], dim=1)
+        )
+
+        self._priv_explicit[:] = self.estimator(obs_buf.float())
+
         observations = th.cat([obs_buf, #53 
                                 height_scan, #132 
                                 self._priv_explicit, # 9
                                 self._priv_latent, #29
                                 self._obs_history_buffer.view(1, -1)
                                 ], dim=-1)
-        obs_buf[:, 6:8] = 0
-        self._obs_history_buffer = th.where(
-            (self.episode_length_buf <= 1)[:, None, None], 
-            th.stack([obs_buf] * self._history_length, dim=1),
-            th.cat([
-                self._obs_history_buffer[:, 1:],
-                obs_buf.unsqueeze(1)
-            ], dim=1)
-        )
+        
+        self._obs_history_buffer = current_history
+
         if self._use_camera:
             depth_image = self._get_depth_image()
         else:
