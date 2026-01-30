@@ -41,13 +41,7 @@ class DeploymentPlayer:
         if network_interface.lower() =='lo':
             self.env = MujocoWrapper(env_cfg, agent_cfg, os.path.join(core.__path__[0],'go2/scene_terrain.xml'), use_camera, use_joystick)
         self._use_camera = use_camera
-        
-        # Initialize Normalizer (default Identity)
-        # Assuming observation shape from env_cfg or hardcode if necessary?
-        # Obs dimension is usually calculated in env.
-        # But here we don't have easy access to obs dict size until we run?
-        # Let's instantiate it with a placeholder or wait until first obs?
-        # Better: Load it, and valid shape check will happen or broadcast.
+
         self.obs_normalizer = None
 
         # Load policy from specified path or default locations
@@ -119,32 +113,7 @@ class DeploymentPlayer:
             
             print("Loading via manual reconstruction (mimicking Runner)...")
             
-            # 1. 确定算法类 (PPO) 并实例化
-            # 这需要完整的 train_cfg。部署时通常只有 agent_cfg (部分参数)
-            # 如果没有完整的 train_cfg，直接实例化 PPO 会缺参数。
-            # 但是，我们可以直接加载 model_state_dict 到对应的 ActorCritic 结构中，
-            # 只要结构定义一致 (core.my_modules vs legged_gym.modules)
-            
-            # 由于你确认了 my_modules 已经复制且一致，我们继续用 deployment_player 原有的手动实例化方式，
-            # 但是要 **修正 Normalizer 的加载逻辑**，使其和 OnPolicyRunner 一致。
-            
-            # --- 修正后的加载逻辑 ---
-            
-            # A. 加载字典
-            # raw_loaded_dict = th.load(model_path, map_location=self.env.device)
-            # if 'model_state_dict' in raw_loaded_dict:
-            #     model_dict = raw_loaded_dict['model_state_dict']
-            # else:
-            #     model_dict = raw_loaded_dict
-
-            # # Handle key prefixes (stripping 'actor.' if present)
-            # new_model_dict = {}
-            # for k, v in model_dict.items():
-            #     if k.startswith('actor.'):
-            #         new_model_dict[k[6:]] = v # Remove 'actor.'
-            #     else:
-            #         new_model_dict[k] = v
-            # model_dict = new_model_dict
+            # 由于确认了 my_modules 已经复制且一致，继续用 deployment_player 原有的手动实例化方式，
 
             # 1. 加载原始字典
             raw_loaded_dict = th.load(model_path, map_location=self.env.device)
@@ -218,54 +187,6 @@ class DeploymentPlayer:
             self.estimator.eval()
             self.env.estimator = self.estimator
 
-            # D. 加载 Normalizer (关键修改)
-            # OnPolicyRunner 保存时，normalizer 通常在 alg.actor_critic.obs_normalizer 或 alg.obs_normalizer
-            # 这里的 model_dict 通常是 actor_critic 的 state_dict
-            
-            print("Loading Normalizer...")
-            self.obs_normalizer = EmpiricalNormalization(shape=[1])
-            
-            # 尝试从 model_dict 中直接找 obs_normalizer (如果它作为子模块注册在 AC 中)
-            # 比如 key 可能是 "obs_std_normalizer.mean" 或 "obs_normalizer.mean"
-            # 搜索所有包含 "running_mean" 的键
-            # USE raw_loaded_dict (full checkpoint) first if possible, but also check model_dict (which is state dict)
-            # Note: model_dict is now stripped of 'actor.'
-            
-            norm_keys = [k for k in raw_loaded_dict.get('model_state_dict', raw_loaded_dict).keys() if "running_mean" in k]
-            print(f"Found running_mean keys in state_dict: {norm_keys}")
-            
-            obs_norm_key = None
-            # 优先匹配含有 'obs' 的名字
-            for k in norm_keys:
-                if 'obs' in k:
-                    obs_norm_key = k
-                    break
-            # 如果没找到带 obs 的，但确实有 mean (比如可能是只有唯一的 normalizer)，取第一个
-            if obs_norm_key is None and len(norm_keys) > 0:
-                obs_norm_key = norm_keys[0]
-            
-            if obs_norm_key:
-                base_key = obs_norm_key.replace("running_mean", "")
-                print(f"Detected normalizer prefix: {base_key}")
-                full_dict = raw_loaded_dict.get('model_state_dict', raw_loaded_dict)
-                self.obs_normalizer.mean.data = full_dict[base_key + "running_mean"]
-                self.obs_normalizer.std.data = th.sqrt(full_dict[base_key + "running_var"] + 1e-8)
-                print(f"Loaded Normalizer: Mean[0]=%.4f, Std[0]=%.4f" % (self.obs_normalizer.mean.data[0], self.obs_normalizer.std.data[0]))
-            else:
-                # 检查是否在顶层 raw_loaded_dict 中 (RSL_RL 风格)
-                if 'obs_norm_state_dict' in raw_loaded_dict:
-                     print("Loading from obs_norm_state_dict...")
-                     obs_norm_algo_dict = raw_loaded_dict['obs_norm_state_dict']
-                     # Usually structure is just mean/var/count
-                     if 'mean' in obs_norm_algo_dict:
-                        self.obs_normalizer.mean.data = obs_norm_algo_dict['mean']
-                        self.obs_normalizer.std.data = th.sqrt(obs_norm_algo_dict['var'] + 1e-8)
-                     else:
-                        # Sometimes it's the module state dict
-                        self.obs_normalizer.load_state_dict(obs_norm_algo_dict)
-                else:
-                     print("WARNING: Could not find Normalizer parameters! Running with Identity Normalization.")
-
             # D. 加载 Depth Encoder (如果需要)
             if self._use_camera:
                 print("Instantiating Depth Encoder...")
@@ -284,40 +205,18 @@ class DeploymentPlayer:
                 depth_keys = [k for k in model_dict.keys() if k.startswith(depth_prefix)]
                 
                 if len(depth_keys) > 0:
-                     self.depth_encoder.load_state_dict(model_dict, strict=False) # 前缀通常已经在 model_dict 里了？
-                     # 如果 model_dict 的 key 是 "depth_encoder.weight"，load_state_dict(..., strict=False) 会匹配上属性名吗？
-                     # 通常需要去掉前缀如果 depth_encoder 是独立实例
-                     # 但这里 depth_encoder 不是 self.policy 的子模块，所以我们需要构建 subset dict 并 strip prefix
-                     
+                     self.depth_encoder.load_state_dict(model_dict, strict=False)
                      depth_subset = {k.replace(depth_prefix, ""): model_dict[k] for k in depth_keys}
                      self.depth_encoder.load_state_dict(depth_subset)
                      print("Loaded Depth Encoder from model_state_dict.")
-                
                 # 检查是否有 depth_encoder_state_dict (RSL_RL 风格)
                 elif 'depth_encoder_state_dict' in raw_loaded_dict:
                     self.depth_encoder.load_state_dict(raw_loaded_dict['depth_encoder_state_dict'])
                     print("Loaded Depth Encoder from depth_encoder_state_dict.")
-                
                 else:
-                    # 尝试加载外部文件
-                     depth_path = os.path.join(os.path.dirname(model_path), 'depth_latest.pt')
-                     if os.path.exists(depth_path):
-                         print(f"Loading external depth file: {depth_path}")
-                         depth_sd = th.load(depth_path, map_location=self.env.device)
-                         if 'model_state_dict' in depth_sd: depth_sd = depth_sd['model_state_dict']
-                         # 移除可能的前缀
-                         depth_sd = {k.replace('depth_encoder.', ''): v for k, v in depth_sd.items()}
-                         self.depth_encoder.load_state_dict(depth_sd, strict=False)
-                     else:
-                         print("WARNING: Depth Encoder weights not found!")
+                    print("WARNING: Depth Encoder weights not found!")
                 
                 self.depth_encoder.eval()
-
-        else:
-            # Fallback for old hardcoded paths (unchanged)
-            self.policy = th.jit.load(os.path.join(logs_path,'exported_teacher','policy.pt'), map_location=self.env.device)
-            self.policy.eval()
-            self.depth_encoder = None
 
         self._clip_actions = agent_cfg['clip_actions']
         estimator_paras = agent_cfg["estimator"]
@@ -328,48 +227,29 @@ class DeploymentPlayer:
         self.cnt = 0 
         self._call_cnt = 0
         self._maximum_iteration = float('inf')
-        
-        # # Setup action recording
-        # self.action_dir = os.path.join(os.getcwd(), "actions")
-        # os.makedirs(self.action_dir, exist_ok=True)
-        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # self.action_file = os.path.join(self.action_dir, f"actions_{timestamp}.txt")
-        # print(f"Actions will be recorded to: {self.action_file}")
 
         print(self.policy)
+        if self._use_camera:
+            print(self.depth_encoder)
         
     def play(self):
         """Advances the environment one time step after generating observations"""
         obs, extras = self.env.get_observations()
         with th.inference_mode():
-            # Apply Normalization
-            if self.obs_normalizer is not None:
-                # Ensure device match
-                if self.obs_normalizer.mean.device != obs.device:
-                    self.obs_normalizer.to(obs.device)
-                obs = self.obs_normalizer(obs)
 
             if not self._use_camera:
-                actions = self.policy(obs , hist_encoding=True)
+                actions = self.policy(obs, hist_encoding=True)
             else:
                 if self.env.common_step_counter %5 == 0:
                     depth_image = extras["observations"]['depth_camera']
                     proprioception = obs[:, :self.num_prop].clone()
                     proprioception[:, 6:8] = 0
                     depth_latent_and_yaw = self.depth_encoder(depth_image , proprioception )
-                    self.depth_latent = depth_latent_and_yaw[:, :-2] 
+                    self.depth_latent = depth_latent_and_yaw[:, :-2]
                     self.yaw = depth_latent_and_yaw[:, -2:]
-                
-                # In training (on_policy_runner.py), overwriting obs[:, 6:8] with inferred yaw is COMMENTED OUT.
-                # So we must NOT overwrite it here either. The policy expects the original command/yaw data in these slots.
-                # obs[:, 6:8] = 1.5*self.yaw <--- REMOVED
-                # print("Using Depth Latent Shape: ", self.depth_latent.shape)
+
                 actions = self.policy(obs , hist_encoding=True, scandots_latent=self.depth_latent)
         
-        # # Record actions
-        # act_np = actions.detach().cpu().numpy()
-        # with open(self.action_file, "a") as f:
-        #     np.savetxt(f, act_np, fmt="%.6f", delimiter=" ")
 
         if self._clip_actions is not None:
             actions = th.clamp(actions, -self._clip_actions, self._clip_actions)

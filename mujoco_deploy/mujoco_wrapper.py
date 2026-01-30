@@ -151,9 +151,14 @@ class MujocoWrapper():
     def get_observations(self):
         self.roll, self.pitch, yaw = euler_xyz_from_quat(self._mujoco_env.articulation.root_quat_w)
         imu_obs = th.stack((wrap_to_pi(self.roll), wrap_to_pi(self.pitch)), dim=1).to(self.device)
-        height_scan = th.clip(self._height_scanner.sensor_data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.sensor_data.ray_hits_w[..., 2] - 0.3, -1, 1).to(self.device) \
-                        if not self._use_camera  else\
-                        self._dummy_scan
+        if not self._use_camera:
+            # Raycaster based height scan
+            sensor_height = self._height_scanner.sensor_data.pos_w[:, 2].unsqueeze(1)
+            hit_height = self._height_scanner.sensor_data.ray_hits_w[..., 2]
+            nominal_height = 0.3
+            height_scan = (sensor_height - hit_height) - nominal_height
+        else:
+            height_scan = self._dummy_scan
         height_scan = th.clip(height_scan, -1, 1).to(self.device)
         env_idx_tensor = th.tensor([True]).to(dtype = th.bool, device=self.device)
         invert_env_idx_tensor = ~env_idx_tensor
