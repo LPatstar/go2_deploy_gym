@@ -144,6 +144,10 @@ def get_configs(use_camera=False):
         env_cfg.scene.depth_camera.update_period = Go2RoughCfg.depth.update_interval * env_cfg.sim.dt
         env_cfg.scene.depth_camera.max_distance = 4.0 
         
+        # Add clip parameters for normalization alignment
+        env_cfg.scene.depth_camera.near_clip = Go2RoughCfg.depth.near_clip if hasattr(Go2RoughCfg.depth, 'near_clip') else 0.15
+        env_cfg.scene.depth_camera.far_clip = Go2RoughCfg.depth.far_clip if hasattr(Go2RoughCfg.depth, 'far_clip') else 2.0
+
         # Force resize to [58, 87] (H, W) for DepthOnlyFCBackbone58x87
         Go2RoughCfg.depth.resized = [58, 87]
 
@@ -170,6 +174,12 @@ def get_configs(use_camera=False):
         # focal_length from horizontal FOV
         env_cfg.scene.depth_camera.pattern_cfg.focal_length = (env_cfg.scene.depth_camera.pattern_cfg.horizontal_aperture / 2) / math.tan(math.radians(fov_h_deg / 2))
         
+        # Calculate Vertical FOV for MuJoCo (fovy)
+        # tan(fovy/2) = (h/2) / f
+        # fovy = 2 * atan(h/(2f))
+        vertical_fov_rad = 2 * math.atan(env_cfg.scene.depth_camera.pattern_cfg.vertical_aperture / (2 * env_cfg.scene.depth_camera.pattern_cfg.focal_length))
+        env_cfg.scene.depth_camera.fovy_deg = math.degrees(vertical_fov_rad)
+
         env_cfg.scene.depth_camera.pattern_cfg.horizontal_aperture_offset = 0.0
         env_cfg.scene.depth_camera.pattern_cfg.vertical_aperture_offset = 0.0
              

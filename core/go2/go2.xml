@@ -63,7 +63,16 @@
   <worldbody>
     <body name="base_link" pos="-7.5 0 0.5" childclass="go2">
     <!-- <body name="base_link" pos="-4.5 0 0.49" childclass="go2"> -->
-    <camera name="d435i_camera" pos="0.33 0 0.08" euler="0 -20.2 48.7"/>
+    <camera name="d435i_camera" pos="0.3 0 0.147" quat="0.6124 0.3536 -0.3536 -0.6124"/>
+    <!-- Debug Camera Visualization Matches Camera Pose -->
+    <body name="debug_camera_viz" pos="0.3 0 0.147" quat="0.6124 0.3536 -0.3536 -0.6124">
+        <!-- Camera Body (Red Box) -->
+        <geom type="box" size="0.01 0.04 0.01" rgba="1 0 0 0.5" contype="0" conaffinity="0" group="1"/>
+        <!-- Ray Direction (Green Line) pointing along -Z (Optical Axis) -->
+        <geom type="cylinder" fromto="0 0 0 0 0 -1.0" size="0.002" rgba="0 1 0 0.8" contype="0" conaffinity="0" group="1"/>
+        <!-- Up Direction (Blue Line) pointing along +Y -->
+        <geom type="cylinder" fromto="0 0 0 0 0.1 0" size="0.002" rgba="0 0 1 0.8" contype="0" conaffinity="0" group="1"/>
+    </body>
       <inertial pos="0.021112 0 -0.005366" quat="-0.000543471 0.713435 -0.00173769 0.700719"
         mass="6.921"
         diaginertia="0.107027 0.0980771 0.0244531" />

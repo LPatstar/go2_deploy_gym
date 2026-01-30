@@ -31,6 +31,13 @@ class MujocoDepthCamera(MujocoBaseSensor):
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        
+        # Override MuJoCo model camera FOV with config value if available
+        # This ensures the rendered image matches the mathematical intrinsics
+        cam_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_CAMERA, self._cam_name)
+        if hasattr(self.sensor_cfg, 'fovy_deg') and cam_id != -1:
+            self._model.cam_fovy[cam_id] = self.sensor_cfg.fovy_deg
+
         self._ALL_INDICES = th.arange(1, device=self._device, dtype=th.long)
 
         self._create_buffers()

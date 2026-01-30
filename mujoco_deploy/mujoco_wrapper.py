@@ -74,10 +74,12 @@ class MujocoWrapper():
                     self._mujoco_env.model, 
                     self._mujoco_env.data)
             self._sensor_term.append(self._depth_camera)
-            self.clipping_range = self._depth_camera.sensor_cfg.max_distance
-            self.resize_transform = torchvision.transforms.Resize(
-                            self._mujoco_env.env_cfg.observations.depth_camera.depth_cam.params.resize, 
-                            interpolation=torchvision.transforms.InterpolationMode.BICUBIC).to(self.device)
+            
+            # Load clip parameters from config or use defaults matching training
+            self.near_clip = self._depth_camera.sensor_cfg.near_clip if hasattr(self._depth_camera.sensor_cfg, 'near_clip') else 0.15
+            print("Near clip:", self.near_clip)
+            self.far_clip = self._depth_camera.sensor_cfg.far_clip if hasattr(self._depth_camera.sensor_cfg, 'far_clip') else 2.0
+            
             self.depth_buffer = th.zeros(self.num_envs,  
                                 self._mujoco_env.env_cfg.observations.depth_camera.depth_cam.params.buffer_len, 
                                 *self._mujoco_env.env_cfg.observations.depth_camera.depth_cam.params.resize).to(self.device)
@@ -243,17 +245,57 @@ class MujocoWrapper():
         return observations.to(th.float), extras
     
     def _process_depth_image(self, depth_image):
+        # Align pipeline sequence with training (LeggedRobot.process_depth_image):
+        # 1. Crop
+        # 2. Clip & Normalize
+        # 3. Resize (Use AdaptiveAvgPool2d to match training's resize2d)
+        # 4. Gaussian Blur
+        
         depth_image = self._crop_depth_image(depth_image)
-        depth_image = self.resize_transform(depth_image[None, :]).squeeze()
         depth_image = self._normalize_depth_image(depth_image)
+        
+        # Resize using AdaptiveAvgPool2d (H, W) -> (1, H, W) -> (1, 58, 87) -> (58, 87)
+        target_size = self._mujoco_env.env_cfg.observations.depth_camera.depth_cam.params.resize # [58, 87]
+        depth_image = th.nn.functional.adaptive_avg_pool2d(depth_image.unsqueeze(0), target_size).squeeze(0)
+        
+        depth_image = self._gaussian_blur(depth_image)
         return depth_image
+        
+    def _gaussian_blur(self, depth_image):
+        # Aligned with training: kernel=3, sigma=1.0, replicate padding
+        k = 3
+        sigma = 1.0
+        
+        if not hasattr(self, "_gaussian_kernel") or self._gaussian_kernel.device != depth_image.device:
+            x = th.arange(k, dtype=th.float32, device=depth_image.device) - k // 2
+            gauss_1d = th.exp(-x ** 2 / (2 * sigma ** 2))
+            gauss_1d = gauss_1d / gauss_1d.sum()
+            gauss_2d = gauss_1d.unsqueeze(0) * gauss_1d.unsqueeze(1)
+            self._gaussian_kernel = gauss_2d.view(1, 1, k, k)
+            
+        # Input shape [H, W] -> [1, 1, H, W] for conv2d
+        depth_input = depth_image.unsqueeze(0).unsqueeze(0)
+        pad = k // 2
+        
+        # Manual pad with replicate to match training
+        depth_padded = th.nn.functional.pad(depth_input, (pad, pad, pad, pad), mode='replicate')
+        
+        depth_blurred = th.nn.functional.conv2d(depth_padded, self._gaussian_kernel, padding=0)
+        
+        return depth_blurred.squeeze()
     
     def _crop_depth_image(self, depth_image):
-        # crop 30 pixels from the left and right and and 20 pixels from bottom and return croped image
-        return depth_image[:-2, 4:-4]
+        # Align with training crop: LeggedRobot.crop_depth_image (batch_depth_images[..., 2:-2, 15:-2])
+        # Training: 2 from top/bottom, 15 from left, 2 from right
+        return depth_image[2:-2, 15:-2]
     
     def _normalize_depth_image(self, depth_image):
-        depth_image = (depth_image) / (self.clipping_range)  - 0.5
+        # Align with training logic: LeggedRobot.normalize_depth_image
+        # 1. Clip to valid range [near, far]
+        depth_image = th.clip(depth_image, min=self.near_clip, max=self.far_clip)
+        
+        # 2. Normalize: (val - near) / (far - near) - 0.5 -> [-0.5, 0.5]
+        depth_image = (depth_image - self.near_clip) / (self.far_clip - self.near_clip) - 0.5
         return depth_image
 
     def _get_depth_image(
@@ -267,7 +309,9 @@ class MujocoWrapper():
         if self.common_step_counter % 5 ==0:
             self.depth_buffer[0] = th.cat([self.depth_buffer[0, 1:], 
                                     processed_image.to(self.device).unsqueeze(0)], dim=0)
-            cv2.imshow('processed_image',processed_image.detach().cpu().numpy())
+            # Add 0.5 for visualization because data is normalized to [-0.5, 0.5]
+            # Without this, all values < 0 (i.e. distance < mid-range) appear black in imshow
+            cv2.imshow('processed_image', processed_image.detach().cpu().numpy() + 0.5)
             cv2.waitKey(1)
         return self.depth_buffer[:, -2].to(self.device)
     
