@@ -130,20 +130,44 @@ class DeploymentPlayer:
             # --- 修正后的加载逻辑 ---
             
             # A. 加载字典
+            # raw_loaded_dict = th.load(model_path, map_location=self.env.device)
+            # if 'model_state_dict' in raw_loaded_dict:
+            #     model_dict = raw_loaded_dict['model_state_dict']
+            # else:
+            #     model_dict = raw_loaded_dict
+
+            # # Handle key prefixes (stripping 'actor.' if present)
+            # new_model_dict = {}
+            # for k, v in model_dict.items():
+            #     if k.startswith('actor.'):
+            #         new_model_dict[k[6:]] = v # Remove 'actor.'
+            #     else:
+            #         new_model_dict[k] = v
+            # model_dict = new_model_dict
+
+            # 1. 加载原始字典
             raw_loaded_dict = th.load(model_path, map_location=self.env.device)
-            if 'model_state_dict' in raw_loaded_dict:
+
+            # 2. 确定提取的目标字典
+            # 优先加载 depth_actor_state_dict，如果不存在则退而求其次寻找 model_state_dict
+            if 'depth_actor_state_dict' in raw_loaded_dict:
+                model_dict = raw_loaded_dict['depth_actor_state_dict']
+                print("Loading parameters from depth_actor_state_dict...")
+            elif 'model_state_dict' in raw_loaded_dict:
                 model_dict = raw_loaded_dict['model_state_dict']
+                print("depth_actor_state_dict not found, using model_state_dict instead.")
             else:
                 model_dict = raw_loaded_dict
+                print("Target key not found, loading raw dictionary.")
 
-            # Handle key prefixes (stripping 'actor.' if present)
+            # 3. 处理 Key 前缀（清洗 'actor.' 前缀）
             new_model_dict = {}
             for k, v in model_dict.items():
+                # 检查是否以 'actor.' 开头
                 if k.startswith('actor.'):
-                    new_model_dict[k[6:]] = v # Remove 'actor.'
+                    new_model_dict[k[6:]] = v  # 移除前 6 个字符 'actor.'
                 else:
                     new_model_dict[k] = v
-            model_dict = new_model_dict
 
             # B. 实例化 Actor (Policy)
             # 确保参数名与训练时一致
@@ -354,13 +378,13 @@ class DeploymentPlayer:
                     proprioception = obs[:, :self.num_prop].clone()
                     proprioception[:, 6:8] = 0
                     depth_latent_and_yaw = self.depth_encoder(depth_image , proprioception )
-                    self.depth_latent = depth_latent_and_yaw[:, :-2]
+                    self.depth_latent = depth_latent_and_yaw[:, :-2] 
                     self.yaw = depth_latent_and_yaw[:, -2:]
                 
                 # In training (on_policy_runner.py), overwriting obs[:, 6:8] with inferred yaw is COMMENTED OUT.
                 # So we must NOT overwrite it here either. The policy expects the original command/yaw data in these slots.
                 # obs[:, 6:8] = 1.5*self.yaw <--- REMOVED
-                
+                # print("Using Depth Latent Shape: ", self.depth_latent.shape)
                 actions = self.policy(obs , hist_encoding=True, scandots_latent=self.depth_latent)
         
         # # Record actions

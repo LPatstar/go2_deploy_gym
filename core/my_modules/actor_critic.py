@@ -170,6 +170,7 @@ class Actor(nn.Module):
             obs_priv_explicit = obs[:, self.num_prop + self.num_scan:self.num_prop + self.num_scan + self.num_priv_explicit]
             if hist_encoding:
                 latent = self.infer_hist_latent(obs)
+                # i am here
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
@@ -188,6 +189,7 @@ class Actor(nn.Module):
             obs_priv_explicit = obs[:, self.num_prop + self.num_scan:self.num_prop + self.num_scan + self.num_priv_explicit]
             if hist_encoding:
                 latent = self.infer_hist_latent(obs)
+                # i am here
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
@@ -200,6 +202,7 @@ class Actor(nn.Module):
     
     def infer_hist_latent(self, obs):
         hist = obs[:, -self.num_hist*self.num_prop:]
+        print("111")
         return self.history_encoder(hist.view(-1, self.num_hist, self.num_prop))
     
     def infer_scandots_latent(self, obs):

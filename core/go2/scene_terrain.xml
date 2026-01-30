@@ -18,5 +18,12 @@
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" />
-  <geom pos="-4.8 0.0 0.15" type="box" size="0.1 0.4 0.009999999999999995" quat="1.0 0.0 0.0 0.0" /><geom pos="-4.6 0.0 0.3" type="box" size="0.1 0.4 0.009999999999999995" quat="1.0 0.0 0.0 0.0" /><geom pos="-4.4 0.0 0.44999999999999996" type="box" size="0.1 0.4 0.009999999999999995" quat="1.0 0.0 0.0 0.0" /><geom pos="-4.2 0.0 0.6" type="box" size="0.1 0.4 0.009999999999999995" quat="1.0 0.0 0.0 0.0" /><geom pos="-4.0 0.0 0.75" type="box" size="0.1 0.4 0.009999999999999995" quat="1.0 0.0 0.0 0.0" /><geom pos="-3.8 0.0 0.9" type="box" size="0.1 0.4 0.009999999999999995" quat="1.0 0.0 0.0 0.0" /></worldbody>
+
+    <geom pos="-4.8 0.0 0.1" type="box" size="0.2 1.0 0.01" />
+    <geom pos="-4.4 0.0 0.2" type="box" size="0.2 1.0 0.01" />
+    <geom pos="-4.0 0.0 0.3" type="box" size="0.2 1.0 0.01" />
+    <geom pos="-3.6 0.0 0.4" type="box" size="0.2 1.0 0.01" />
+    <geom pos="-3.2 0.0 0.5" type="box" size="0.2 1.0 0.01" />
+    <geom pos="-2.8 0.0 0.6" type="box" size="0.2 1.0 0.01" />
+  </worldbody>
 </mujoco>
