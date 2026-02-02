@@ -309,7 +309,7 @@ class MujocoWrapper():
             # Without this, all values < 0 (i.e. distance < mid-range) appear black in imshow
             cv2.imshow('processed_image', processed_image.detach().cpu().numpy() + 0.5)
             cv2.waitKey(1)
-        return self.depth_buffer[:, -2].to(self.device)
+        return self.depth_buffer[:, -1].to(self.device)
     
     def _get_contact_fill(
         self,

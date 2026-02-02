@@ -240,13 +240,12 @@ class DeploymentPlayer:
             if not self._use_camera:
                 actions = self.policy(obs, hist_encoding=True)
             else:
-                if self.env.common_step_counter %5 == 0:
-                    depth_image = extras["observations"]['depth_camera']
-                    proprioception = obs[:, :self.num_prop].clone()
-                    proprioception[:, 6:8] = 0
-                    depth_latent_and_yaw = self.depth_encoder(depth_image , proprioception )
-                    self.depth_latent = depth_latent_and_yaw[:, :-2]
-                    self.yaw = depth_latent_and_yaw[:, -2:]
+                depth_image = extras["observations"]['depth_camera']
+                proprioception = obs[:, :self.num_prop].clone()
+                proprioception[:, 6:8] = 0
+                depth_latent_and_yaw = self.depth_encoder(depth_image , proprioception )
+                self.depth_latent = depth_latent_and_yaw[:, :-2]
+                self.yaw = depth_latent_and_yaw[:, -2:]
 
                 actions = self.policy(obs , hist_encoding=True, scandots_latent=self.depth_latent)
         
