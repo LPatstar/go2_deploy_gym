@@ -23,7 +23,7 @@ def main(args):
         env_cfg.scene.num_envs = 1
     else:
         print("Loading Config from Python Classes (go2_parkour)...")
-        env_cfg, agent_cfg = get_configs(use_camera=args.use_camera)
+        env_cfg, agent_cfg = get_configs(use_camera=args.use_camera, use_delay=args.delay)
     
     # Use user provided logs path or construct a default relative one
     logs_path = args.logs_path if args.logs_path else os.path.join('logs', args.rl_lib, args.task, args.expid)
@@ -57,6 +57,7 @@ if __name__ == "__main__":
     parser.add_argument("--interface", type=str, default='lo')
     parser.add_argument("--use_joystick", action='store_true', default=False)
     parser.add_argument("--use_camera", action='store_true', default=False, help="Use depth camera for student policy")
+    parser.add_argument("--delay", action='store_true', default=False, help="Add action delay")
     parser.add_argument("--n_eval", type=int, default=10)
     
     # New arguments for flexible paths

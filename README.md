@@ -21,7 +21,7 @@ Before installing this repo, you must install a [unitree_mujoco](https://github.
 
 ### 2.2. Deploy mujoco
 
-`python go2_deploy.py --load_model [Your Path]/model_xxxx.pt --use_camera`
+`python go2_deploy.py --load_model [Your Path]/model_xxxx.pt --use_camera --delay`
 
 
 ### Acknowledgement

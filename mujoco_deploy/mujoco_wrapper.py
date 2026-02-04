@@ -91,8 +91,12 @@ class MujocoWrapper():
         self._action_history_length = joint_pos_cfg.history_length
         self._delay_update_global_steps = int(joint_pos_cfg.delay_update_global_steps)
         self._use_delay = joint_pos_cfg.use_delay
-        self._action_delay_steps = joint_pos_cfg.action_delay_steps
-        self.delay = th.tensor(0.0, device=self.device, dtype=th.float)
+        self._action_delay_steps = list(joint_pos_cfg.action_delay_steps)  # Make a copy to avoid modifying config
+        # Initialize delay: if use_delay is enabled and we have delay steps, pop the first one
+        if self._use_delay and len(self._action_delay_steps) > 0:
+            self.delay = th.tensor(self._action_delay_steps.pop(0), device=self.device, dtype=th.float)
+        else:
+            self.delay = th.tensor(0.0, device=self.device, dtype=th.float)
         self._action_history_buf = th.zeros(1, self._action_history_length, self._mujoco_env.articulation.num_motor, device=self.device, dtype=th.float)
         self._actions = th.zeros(1, self._mujoco_env.articulation.num_motor, device=self.device)
         self._processed_actions = th.zeros(1, self._mujoco_env.articulation.num_motor, device=self.device)
@@ -106,13 +110,13 @@ class MujocoWrapper():
 
     def _init_pose_stand_up(self):
         runing_time = 0.0
-        with tqdm(total=3.0, desc="[INFO] Setting up the initial posture ...") as pbar:   
-            while runing_time < 3.0:
+        with tqdm(total=1.0, desc="[INFO] Setting up the initial posture ...") as pbar:   
+            while runing_time < 1.0:
                 self.sensor_update()
                 self.sensor_render()
                 runing_time += self._mujoco_env.env_cfg.sim.dt
-                pbar.update(min(self._mujoco_env.env_cfg.sim.dt, 3.0 - pbar.n)) 
-                phase = th.tanh(th.tensor([runing_time / 1.2]).to('cuda:0'))
+                pbar.update(min(self._mujoco_env.env_cfg.sim.dt, 1.0 - pbar.n)) 
+                phase = th.tanh(th.tensor([runing_time / 0.4]).to('cuda:0'))
                 cur_pose = phase * self._mujoco_env.default_joint_pose + (1-phase) * self._stand_down_joint_pos
                 self._init_actions = self._mujoco_env.articulation.joint_stiffness*(cur_pose - self._mujoco_env.articulation.joint_pos) + \
                     self._mujoco_env.articulation.joint_dampings * (self._mujoco_env.articulation.control_joint_velocities - self._mujoco_env.articulation.joint_vel)
@@ -350,9 +354,19 @@ class MujocoWrapper():
 
 
     def _process_actions(self):
+        # Update delay periodically if using delay mode (for domain randomization during training)
+        # In deployment/inference, use fixed action_delay_view value (similar to training's viewer mode)
         if self.common_step_counter % self._delay_update_global_steps == 0:
             if len(self._action_delay_steps) != 0:
                 self.delay = th.tensor(self._action_delay_steps.pop(0), device=self.device, dtype=th.float)
+        
+        # Align with training: in inference mode, use the action_delay_steps values
+        # These are populated from action_delay_view in config_adapter
+        if self._use_delay and len(self._action_delay_steps) == 0:
+            # action_delay_steps list is exhausted, maintain the current delay value
+            # This ensures consistent delay throughout deployment (like viewer mode in training)
+            pass  # self.delay keeps its initialized/last value
+        
         self._action_history_buf = th.cat([self._action_history_buf[:, 1:].clone(), self._actions[:, None, :].clone()], dim=1)
         indices = -1 - self.delay
         if self._use_delay:

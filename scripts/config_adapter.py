@@ -25,7 +25,7 @@ except ImportError as e:
     class Go2RoughCfg: pass
     class Go2RoughCfgPPO: pass
 
-def get_configs(use_camera=False):
+def get_configs(use_camera=False, use_delay=False):
     """
     Converts Go2RoughCfg and Go2RoughCfgPPO to the format expected by DeploymentPlayer
     """
@@ -81,9 +81,11 @@ def get_configs(use_camera=False):
     env_cfg.actions.joint_pos.scale = Go2RoughCfg.control.action_scale
     env_cfg.actions.joint_pos.use_default_offset = True # Standard PPO uses this
     env_cfg.actions.joint_pos.history_length = 3 # Buffer size for action history
-    env_cfg.actions.joint_pos.use_delay = False # Simplify for deployment
+    env_cfg.actions.joint_pos.use_delay = use_delay # Simplify for deployment
     env_cfg.actions.joint_pos.delay_update_global_steps = 1 # Prevent ZeroDivisionError
-    env_cfg.actions.joint_pos.action_delay_steps = [] # Must be a list
+    # Align with training: use action_delay_view as the delay step value
+    # action_delay_view is the fixed delay used during visualization/inference in training
+    env_cfg.actions.joint_pos.action_delay_steps = [Go2RoughCfg.domain_rand.action_delay_view] if use_delay else [] # Must be a list
     
     # Using a large value for clip if not explicitly defined in joint_pos clip, or use action clip
     # MujocoWrapper expects a list at env_cfg.actions.joint_pos.clip['.*'] because it uses unpack operator [*...]
