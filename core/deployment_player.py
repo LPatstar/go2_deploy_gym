@@ -48,13 +48,8 @@ class DeploymentPlayer:
         if model_path is not None and os.path.exists(model_path):
             print(f"Loading model from: {model_path}")
 
-            # Reconstruct configs to use task_registry like in play.py
-            # 假设 model_path 上级目录类似 .../parkour_new/021-g2-teacher/model_1200.pt
-            # 我们需要构建 log_root (run_dir)
             log_root = os.path.dirname(model_path) 
             # 有可能 model_path 指向了具体的文件，而 task_registry 需要的是 experiment name 和 log_dir
-            # 这里我们尝试从 model_path 解析出 run_name
-            # 例如: .../logs/parkour_new/EXP_NAME/model_xxx.pt
             # 我们需要的是 log_dir = .../logs/parkour_new, run_name = EXP_NAME
             
             # 由于参数只传入了 env_cfg, agent_cfg，这里我们直接从文件加载
@@ -75,8 +70,7 @@ class DeploymentPlayer:
             # 这里假设 task_name 可以从 env_cfg 中推断，或者由于是 deploy，我们可能已知是 "go2" 
             # 但 env_cfg 已经是解析后的对象。
             
-            # 简化方案：直接使用 deployment 原有的加载逻辑，但确保 Normalizer 的加载正确
-            # 或者，如果一定要完全一致：
+            # 简化方案：直接使用 deployment 原有的加载逻辑
             
             import torch
             
@@ -88,25 +82,11 @@ class DeploymentPlayer:
             # 或者尝试从 checkpoint 中的 config 恢复？通常 checkpoint 不带完整 config。
             # 我们使用当前传入的 agent_cfg 构建 runner。
             
-            # 根据 play.py:
-            # ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(...)
-            # policy = ppo_runner.get_inference_policy(device=env.device)
-            # estimator = ppo_runner.get_estimator_inference_policy(device=env.device)
-            # depth_encoder = ppo_runner.get_depth_encoder_inference_policy(device=env.device)
-            
             # 关键在于 ppo_runner 的实例化。
             # 我们可以直接实例化 OnPolicyRunner (来自 my_runner) 并 load
             # 因为 my_runner.on_policy_runner 已经被复制过来了
             
             from core.my_runner.on_policy_runner import OnPolicyRunner
-            
-            # 我们需要重构 train_cfg 字典，因为 OnPolicyRunner 需要它
-            # agent_cfg 看起来是 train_cfg 的一部分或转换版
-            # 这里直接使用 loaded_dict 来加载到 runner 
-            
-            # 实例化 Runner (需要 env，alg_cfg, log_dir, device)
-            # 注意：这里的 self.env 是 MujocoWrapper
-            # OnPolicyRunner.__init__ 会用到 env.num_envs, env.num_obs 等
             
             # 为了避免复杂的 Runner 初始化依赖，我们手动提取 Runner 中的加载逻辑
             # 参考 OnPolicyRunner.load() 和 get_inference_policy()
@@ -117,35 +97,11 @@ class DeploymentPlayer:
 
             # 1. 加载原始字典
             raw_loaded_dict = th.load(model_path, map_location=self.env.device)
-
-            # 2. 确定提取的目标字典
-            # 优先加载 depth_actor_state_dict，如果不存在则退而求其次寻找 model_state_dict
-            if 'depth_actor_state_dict' in raw_loaded_dict:
-                model_dict = raw_loaded_dict['depth_actor_state_dict']
-                print("Loading parameters from depth_actor_state_dict...")
-            elif 'model_state_dict' in raw_loaded_dict:
-                model_dict = raw_loaded_dict['model_state_dict']
-                print("depth_actor_state_dict not found, using model_state_dict instead.")
-            else:
-                model_dict = raw_loaded_dict
-                print("Target key not found, loading raw dictionary.")
-
-            # 3. 处理 Key 前缀（清洗 'actor.' 前缀）
-            new_model_dict = {}
-            for k, v in model_dict.items():
-                # 检查是否以 'actor.' 开头
-                if k.startswith('actor.'):
-                    new_model_dict[k[6:]] = v  # 移除前 6 个字符 'actor.'
-                else:
-                    new_model_dict[k] = v
-
-            # B. 实例化 Actor (Policy)
-            # 确保参数名与训练时一致
             est_cfg = agent_cfg['estimator']
             activation_name = est_cfg.activation
             activation_module = get_activation(activation_name)
-            
-            # 使用 core.my_modules.actor_critic.Actor (你确认这是训练用的代码)
+
+            # 2. 加载Actor
             self.policy = Actor(
                 num_prop=est_cfg.num_prop,
                 num_scan=est_cfg.num_scan,
@@ -158,8 +114,28 @@ class DeploymentPlayer:
                 num_hist=est_cfg.num_hist,
                 activation=activation_module,
             ).to(self.env.device)
-            
-            # 加载权重
+
+            # A. 处理 State Dict
+            if self._use_camera and 'depth_actor_state_dict' in raw_loaded_dict:
+                model_dict = raw_loaded_dict['depth_actor_state_dict']
+                print("Loading parameters from depth_actor_state_dict...")
+            elif 'model_state_dict' in raw_loaded_dict:
+                model_dict = raw_loaded_dict['model_state_dict']
+                # 处理 Key 前缀（清洗 'actor.' 前缀）
+                new_model_dict = {}
+                for k, v in model_dict.items():
+                    # 检查是否以 'actor.' 开头
+                    if k.startswith('actor.'):
+                        new_model_dict[k[6:]] = v  # 移除前 6 个字符 'actor.'
+                    else:
+                        new_model_dict[k] = v
+                model_dict = new_model_dict
+                print("depth_actor_state_dict not found, using model_state_dict instead.")
+            else:
+                model_dict = raw_loaded_dict
+                print("Target key not found, loading raw dictionary.")
+
+            # B. 实例化 Actor (Policy)
             missing_keys, unexpected_keys = self.policy.load_state_dict(model_dict, strict=False)
             print("Policy loaded.")
             if missing_keys:
@@ -169,7 +145,7 @@ class DeploymentPlayer:
             
             self.policy.eval()
 
-            # Load Estimator
+            # 3. Load Estimator
             print("Loading Estimator...")
             self.estimator = Estimator(
                 input_dim=est_cfg.num_prop, 
@@ -187,7 +163,7 @@ class DeploymentPlayer:
             self.estimator.eval()
             self.env.estimator = self.estimator
 
-            # D. 加载 Depth Encoder (如果需要)
+            # 4. 加载 Depth Encoder
             if self._use_camera:
                 print("Instantiating Depth Encoder...")
                 backbone = DepthOnlyFCBackbone58x87(
@@ -204,13 +180,7 @@ class DeploymentPlayer:
                 depth_prefix = "depth_encoder."
                 depth_keys = [k for k in model_dict.keys() if k.startswith(depth_prefix)]
                 
-                if len(depth_keys) > 0:
-                     self.depth_encoder.load_state_dict(model_dict, strict=False)
-                     depth_subset = {k.replace(depth_prefix, ""): model_dict[k] for k in depth_keys}
-                     self.depth_encoder.load_state_dict(depth_subset)
-                     print("Loaded Depth Encoder from model_state_dict.")
-                # 检查是否有 depth_encoder_state_dict (RSL_RL 风格)
-                elif 'depth_encoder_state_dict' in raw_loaded_dict:
+                if 'depth_encoder_state_dict' in raw_loaded_dict:
                     self.depth_encoder.load_state_dict(raw_loaded_dict['depth_encoder_state_dict'])
                     print("Loaded Depth Encoder from depth_encoder_state_dict.")
                 else:
@@ -243,11 +213,11 @@ class DeploymentPlayer:
                 depth_image = extras["observations"]['depth_camera']
                 proprioception = obs[:, :self.num_prop].clone()
                 proprioception[:, 6:8] = 0
-                depth_latent_and_yaw = self.depth_encoder(depth_image , proprioception )
+                depth_latent_and_yaw = self.depth_encoder(depth_image, proprioception)
                 self.depth_latent = depth_latent_and_yaw[:, :-2]
                 self.yaw = depth_latent_and_yaw[:, -2:]
 
-                actions = self.policy(obs , hist_encoding=True, scandots_latent=self.depth_latent)
+                actions = self.policy(obs, hist_encoding=True, scandots_latent=self.depth_latent)
         
 
         if self._clip_actions is not None:
