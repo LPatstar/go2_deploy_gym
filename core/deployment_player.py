@@ -220,8 +220,8 @@ class DeploymentPlayer:
                 actions = self.policy(obs, hist_encoding=True, scandots_latent=self.depth_latent)
         
 
-        if self._clip_actions is not None:
-            actions = th.clamp(actions, -self._clip_actions, self._clip_actions)
+        # if self._clip_actions is not None:
+        #     actions = th.clamp(actions, -self._clip_actions, self._clip_actions)
         
         obs, terminated, timeout, extras = self.env.step(actions)  # For HW, this internally just does forward
 
