@@ -19,11 +19,10 @@
     <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" />
 
-    <geom pos="-4.8 0.0 0.15" type="box" size="0.2 0.8 0.03" />
-    <geom pos="-4.4 0.0 0.30" type="box" size="0.2 0.8 0.03" />
-    <geom pos="-4.0 0.0 0.45" type="box" size="0.2 0.8 0.03" />
-    <geom pos="-3.6 0.0 0.60" type="box" size="0.2 0.8 0.03" />
-    <geom pos="-3.2 0.0 0.75" type="box" size="0.2 0.8 0.03" />
-    <geom pos="-2.6 0.0 0.90" type="box" size="0.4 0.8 0.03" />
+    <geom pos="-5.8 0.0 0.15" type="box" size="0.1 0.4 0.015" />
+    <geom pos="-5.6 0.0 0.30" type="box" size="0.1 0.4 0.015" />
+    <geom pos="-5.4 0.0 0.45" type="box" size="0.1 0.4 0.015" />
+    <geom pos="-5.2 0.0 0.60" type="box" size="0.1 0.4 0.015" />
+    <geom pos="-4.9 0.0 0.75" type="box" size="0.2 0.4 0.015" />
   </worldbody>
 </mujoco>
