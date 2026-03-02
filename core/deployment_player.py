@@ -245,10 +245,10 @@ class DeploymentPlayer:
                     proprioception = obs[:, :self.num_prop].clone()
                     proprioception[:, 6:8] = 0
                     depth_latent_and_yaw = self.depth_encoder(depth_image , proprioception )
-                    self.depth_latent = depth_latent_and_yaw[:, :-2]
+                    self.depth_latent = depth_latent_and_yaw[:, :-2] 
                     self.yaw = depth_latent_and_yaw[:, -2:]
-
-                actions = self.policy(obs , hist_encoding=True, scandots_latent=self.depth_latent)
+                # print(self.depth_latent)
+                actions = self.policy(obs , hist_encoding=True, scandots_latent=self.depth_latent, eval=True)
         
 
         if self._clip_actions is not None:

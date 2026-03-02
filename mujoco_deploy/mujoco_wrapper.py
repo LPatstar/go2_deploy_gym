@@ -220,6 +220,7 @@ class MujocoWrapper():
         )
 
         self._priv_explicit[:] = self.estimator(obs_buf.float())
+        # print(self._priv_explicit)
 
         observations = th.cat([obs_buf, #53 
                                 height_scan, #132 

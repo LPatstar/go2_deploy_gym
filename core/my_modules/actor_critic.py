@@ -182,13 +182,16 @@ class Actor(nn.Module):
                 if scandots_latent is None:
                     scan_latent = self.scan_encoder(obs_scan)   
                 else:
+                    print("Using provided scan_latent", scandots_latent)
                     scan_latent = scandots_latent
                 obs_prop_scan = torch.cat([obs[:, :self.num_prop], scan_latent], dim=1)
             else:
                 obs_prop_scan = obs[:, :self.num_prop + self.num_scan]
             obs_priv_explicit = obs[:, self.num_prop + self.num_scan:self.num_prop + self.num_scan + self.num_priv_explicit]
+            print("Using provided obs_priv_explicit", obs_priv_explicit)
             if hist_encoding:
                 latent = self.infer_hist_latent(obs)
+                print("Using history latent for eval", latent)
                 # i am here
             else:
                 latent = self.infer_priv_latent(obs)

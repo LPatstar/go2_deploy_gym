@@ -1,5 +1,6 @@
 <mujoco model="go2 scene">
   <include file="go2.xml" />
+  <include file="rolling_ladder.xml" />
 
   <statistic center="0 0 0.1" extent="0.8" />
 
@@ -19,6 +20,7 @@
     <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" />
 
+    <geom pos="-4.8 0.0 0." type="box" size="10.2 1.0 0.01" />
     <geom pos="-4.8 0.0 0.1" type="box" size="0.2 1.0 0.01" />
     <geom pos="-4.4 0.0 0.2" type="box" size="0.2 1.0 0.01" />
     <geom pos="-4.0 0.0 0.3" type="box" size="0.2 1.0 0.01" />

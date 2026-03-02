@@ -1,0 +1,26 @@
+<mujoco model="rolling_ladder_seg">
+  <compiler angle="radian" meshdir="assets" />
+
+  <default>
+    <default class="ladder_visual">
+      <geom group="2" type="mesh" contype="0" conaffinity="0" />
+    </default>
+    <default class="ladder_collision">
+      <geom group="3" />
+    </default>
+  </default>
+
+  <asset>
+    <mesh file="rolling_ladder_seg.obj" name="rolling_ladder_seg" scale="2 2 2"/>
+  </asset>
+
+  <worldbody>
+    <body name="rolling_ladder" pos="6.0 0 0.6" quat="0 0 0 1">
+        <body name="rolling_ladder_seg_body">
+            <geom mesh="rolling_ladder_seg" class="ladder_visual" type="mesh" />
+            
+            <geom mesh="rolling_ladder_seg" class="ladder_collision" type="mesh" group="3"/>
+        </body>
+    </body>
+  </worldbody>
+</mujoco>
