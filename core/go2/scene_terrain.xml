@@ -15,14 +15,67 @@
     <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
   </asset>
 
+  <default>
+    <default class="rail">
+      <geom type="box" rgba="0.3 0.3 0.3 1"/>
+
+      <default class="post_short">
+        <geom size="0.015 0.015 0.3"/>
+      </default>
+
+      <default class="post_tall">
+        <geom size="0.015 0.015 0.6"/>
+      </default>
+
+      <default class="bar_sloped">
+        <geom size="0.015 0.015 0.5" euler="0 0.9273 0"/>
+      </default>
+
+      <default class="bar_flat">
+         <geom size="0.5 0.015 0.015"/>
+      </default>
+    </default>
+
+    <default class="step_std">
+        <geom type="box" size="0.1 0.4 0.015"/>
+    </default>
+    <default class="step_platform">
+        <geom type="box" size="0.5 0.4 0.015"/>
+    </default>
+  </default>
+
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" />
 
-    <geom pos="-5.8 0.0 0.15" type="box" size="0.1 0.4 0.015" />
-    <geom pos="-5.6 0.0 0.30" type="box" size="0.1 0.4 0.015" />
-    <geom pos="-5.4 0.0 0.45" type="box" size="0.1 0.4 0.015" />
-    <geom pos="-5.2 0.0 0.60" type="box" size="0.1 0.4 0.015" />
-    <geom pos="-4.9 0.0 0.75" type="box" size="0.2 0.4 0.015" />
+    <geom class="step_std" pos="-5.8 0.0 0.15"/>
+    <geom class="step_std" pos="-5.6 0.0 0.30"/>
+    <geom class="step_std" pos="-5.4 0.0 0.45"/>
+    <geom class="step_std" pos="-5.2 0.0 0.60"/>
+    <geom class="step_platform" pos="-4.6 0.0 0.75"/>
+
+    <geom class="post_short" pos="-5.885 0.385 0.3"/>
+    <geom class="post_short" pos="-5.885 -0.385 0.3"/>
+    
+    <geom class="post_tall" pos="-5.085 0.385 0.6"/>
+    <geom class="post_tall" pos="-5.085 -0.385 0.6"/>
+
+    <geom class="post_tall" pos="-4.115 0.385 0.6"/>
+    <geom class="post_tall" pos="-4.115 -0.385 0.6"/>
+
+    <geom class="bar_sloped" pos="-5.485 0.385 0.5"/>
+    <geom class="bar_sloped" pos="-5.485 0.385 0.7"/>
+    <geom class="bar_sloped" pos="-5.485 0.385 0.9"/>
+    
+    <geom class="bar_sloped" pos="-5.485 -0.385 0.5"/>
+    <geom class="bar_sloped" pos="-5.485 -0.385 0.7"/>
+    <geom class="bar_sloped" pos="-5.485 -0.385 0.9"/>
+
+    <geom class="bar_flat" pos="-4.6 0.385 1.0"/>
+    <geom class="bar_flat" pos="-4.6 0.385 1.2"/>
+    
+    <geom class="bar_flat" pos="-4.6 -0.385 1.0"/>
+    <geom class="bar_flat" pos="-4.6 -0.385 1.2"/>
+
   </worldbody>
 </mujoco>

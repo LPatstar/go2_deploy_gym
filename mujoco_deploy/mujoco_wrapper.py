@@ -12,7 +12,7 @@ import math
 from typing import Optional
 import os
 from datetime import datetime
-
+import cv2
 
 from tqdm import tqdm
 class MujocoWrapper():
@@ -311,7 +311,15 @@ class MujocoWrapper():
                                     processed_image.to(self.device).unsqueeze(0)], dim=0)
             # Add 0.5 for visualization because data is normalized to [-0.5, 0.5]
             # Without this, all values < 0 (i.e. distance < mid-range) appear black in imshow
-            cv2.imshow('processed_image', processed_image.detach().cpu().numpy() + 0.5)
+            window_name = "Depth Image"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            scale_factor = 10
+            height, width = processed_image.shape[:2]
+            new_height = int(56 * scale_factor)
+            new_width = int(87 * scale_factor)
+            resized_depth_image = cv2.resize(processed_image.detach().cpu().numpy() + 0.5, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+            cv2.resizeWindow(window_name, new_width, new_height)
+            cv2.imshow(window_name, resized_depth_image)
             cv2.waitKey(1)
         return self.depth_buffer[:, -1].to(self.device)
     
